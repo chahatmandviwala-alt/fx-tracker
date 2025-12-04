@@ -782,7 +782,7 @@ with tab_new:
 
 # ---------- TAB: HISTORY ----------
 with tab_history:
-    spacer, toggle_col = st.columns([5, 1])
+    toggle_col = st.columns([5, 1])
     with toggle_col:
         current_edit = st.session_state.get("history_edit_mode", False)
         toggle_val = st.toggle(
@@ -995,5 +995,6 @@ with tab_pl:
                     use_container_width=True,
                     hide_index=True,
                 )
+
 
 
