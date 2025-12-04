@@ -101,6 +101,31 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+st.markdown("""
+<style>
+
+div[data-testid="stTabs"] button {
+    padding-top: 0px !important;     /* default ~10px */
+    padding-bottom: 6px !important;
+    padding-left: 0px !important;
+    padding-right: 0px !important;
+
+    font-size: 0.85rem !important;   /* smaller label text */
+    height: 30px !important;         /* reduce full tab height */
+}
+
+div[data-testid="stTabs"] button p {
+    font-size: 0.85rem !important;   /* tab label text */
+}
+
+/* Optional: reduce gap between tabs a bit */
+div[data-testid="stTabs"] button + button {
+    margin-left: -2px !important;
+}
+
+</style>
+""", unsafe_allow_html=True)
+
 
 # =========================
 # FILES & SETTINGS
@@ -975,3 +1000,4 @@ with tab_pl:
                     use_container_width=True,
                     hide_index=True,
                 )
+
