@@ -583,7 +583,6 @@ tab_holdings, tab_new, tab_history, tab_pl = st.tabs(
 
 # ---------- TAB: HOLDINGS ----------
 with tab_holdings:
-    st.subheader("Holdings")
 
     if positions_summary.empty:
         st.info("No positions yet. Add an FX transaction first.")
@@ -783,14 +782,11 @@ with tab_new:
 
 # ---------- TAB: HISTORY ----------
 with tab_history:
-    # Title + slim right-aligned edit toggle
-    title_col, toggle_col = st.columns([7, 1])
-    with title_col:
-        st.subheader("Transaction history")
+    spacer, auto_col = st.columns([5, 1])
     with toggle_col:
         current_edit = st.session_state.get("history_edit_mode", False)
         toggle_val = st.toggle(
-            "Edit",
+            "Enable Edit Mode",
             value=current_edit,
             key="history_edit_toggle",
             help="Toggle to enable editing (add/remove/change rows). Remember to save.",
@@ -922,7 +918,6 @@ with tab_history:
 
 # ---------- TAB: REALIZED P/L ----------
 with tab_pl:
-    st.subheader(f"Realized P/L")
 
     if trades_df.empty:
         st.info("No transactions yet.")
@@ -1000,4 +995,5 @@ with tab_pl:
                     use_container_width=True,
                     hide_index=True,
                 )
+
 
