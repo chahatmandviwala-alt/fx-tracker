@@ -1,0 +1,8 @@
+streamlit
+pywebview
+pywin32
+pandas
+numpy
+requests
+plotly
+yfinance
