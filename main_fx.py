@@ -162,6 +162,79 @@ def save_settings(settings: dict) -> None:
     except Exception:
         pass
 
+@st.cache_data(show_spinner=False)
+def fetch_historical_fx_bulk(
+    dates: list[date],
+    from_ccy: str,
+    to_ccy: str,
+) -> dict[date, float]:
+    """
+    Get FX rates (from_ccy → to_ccy) for many dates using Frankfurter timeseries.
+    Returns a dict mapping each requested date to 'to_ccy per 1 from_ccy'.
+
+    Weekend/holiday handling:
+    - Frankfurter only returns business days.
+    - We forward-fill rates so weekends use the last available business day.
+    """
+    from_ccy = (from_ccy or "").upper()
+    to_ccy = (to_ccy or "").upper()
+
+    # Basic guards
+    if not from_ccy or not to_ccy:
+        return {d: 1.0 for d in dates}
+    if from_ccy == to_ccy:
+        return {d: 1.0 for d in dates}
+
+    # Clean dates
+    valid_dates = sorted(set(d for d in dates if pd.notna(d)))
+    if not valid_dates:
+        return {}
+
+    start_str = valid_dates[0].strftime("%Y-%m-%d")
+    end_str = valid_dates[-1].strftime("%Y-%m-%d")
+
+    # ✅ Correct Frankfurter timeseries endpoint: /v1/start..end
+    url = f"https://api.frankfurter.dev/v1/{start_str}..{end_str}"
+
+    try:
+        resp = requests.get(
+            url,
+            params={
+                "base": from_ccy,
+                "symbols": to_ccy,
+            },
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json().get("rates", {})
+
+        # If API gave nothing back, degrade gracefully
+        if not data:
+            return {d: 1.0 for d in dates}
+
+        # Convert to Series: index = datetime.date, value = rate
+        series = pd.Series(
+            {
+                datetime.strptime(ds, "%Y-%m-%d").date(): float(r[to_ccy])
+                for ds, r in data.items()
+                if to_ccy in r
+            }
+        ).sort_index()
+
+        if series.empty:
+            return {d: 1.0 for d in dates}
+
+        # Build full daily index and forward-fill so weekends/holidays are covered
+        full_idx = pd.date_range(valid_dates[0], valid_dates[-1], freq="D")
+        series = series.reindex(full_idx.date).ffill()
+
+        # Return rates for exactly the requested dates
+        return {d: float(series.get(d, 1.0)) for d in dates}
+
+    except Exception:
+        # On error, degrade gracefully
+        return {d: 1.0 for d in dates}
+
 
 # =========================
 # FX HELPERS (FRANKFURTER)
@@ -343,10 +416,6 @@ def recompute_average_cost(trades_df: pd.DataFrame) -> pd.DataFrame:
 
 
 def load_trades(base_ccy: str, recalc_fx: bool) -> pd.DataFrame:
-    """
-    Load trades CSV, ensure columns, recalc FX if base changed,
-    then recompute average-cost + P/L.
-    """
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE, sep=";")
     else:
@@ -362,13 +431,21 @@ def load_trades(base_ccy: str, recalc_fx: bool) -> pd.DataFrame:
     # Re-fetch FX for all rows if base currency changed
     if recalc_fx and base_ccy:
         base_ccy = base_ccy.upper()
-        for idx, row in df.iterrows():
-            fccy = str(row["foreign_ccy"]).upper()
-            dt = row["date"]
-            if pd.isna(dt) or not fccy:
-                continue
-            rate = fetch_historical_fx(dt, fccy, base_ccy)
-            df.at[idx, "fx_rate"] = rate
+        df["foreign_ccy"] = df["foreign_ccy"].astype(str).str.upper()
+
+        # Only rows with a date and currency
+        mask = df["date"].notna() & df["foreign_ccy"].astype(bool)
+        df_valid = df[mask].copy()
+
+        # Bulk-fetch per foreign currency
+        for fccy, group in df_valid.groupby("foreign_ccy"):
+            # list of datetime.date, not datetime
+            trade_dates = list(group["date"].dt.date)
+            rates_map = fetch_historical_fx_bulk(trade_dates, fccy, base_ccy)
+
+            # Assign rates back to df
+            for idx, d in zip(group.index, trade_dates):
+                df.at[idx, "fx_rate"] = rates_map.get(d, 1.0)
 
     df = recompute_average_cost(df)
     return df
@@ -995,6 +1072,7 @@ with tab_pl:
                     use_container_width=True,
                     hide_index=True,
                 )
+
 
 
 
