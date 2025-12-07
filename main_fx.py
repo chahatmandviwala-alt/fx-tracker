@@ -959,6 +959,7 @@ with tab_history:
             editable = trades_df[history_cols].copy()
             # Show date as string for editing
             editable["date"] = editable["date"].dt.strftime("%Y-%m-%d")
+            editable["foreign_amount"] = editable["foreign_amount"].abs()
 
             editable = editable.rename(
                 columns={
@@ -1146,6 +1147,7 @@ with tab_pl:
                     use_container_width=True,
                     hide_index=True,
                 )
+
 
 
 
