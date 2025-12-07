@@ -975,13 +975,21 @@ with tab_history:
                 }
             )
 
+            # Reset index so data_editor doesn't show numbered rows
+            editable = editable.reset_index()
+            
             edited_df = st.data_editor(
-                editable,
-                num_rows="dynamic",  # allow add/remove rows
-                use_container_width=True,
-                hide_index=True,
-                key="history_editor",
-            )
+                 editable,
+                 num_rows="dynamic",
+                 use_container_width=True,
+                 key="history_editor",
+                 column_config={
+                     "index": st.column_config.Column(
+                         label="",
+                         hidden=True,   # 👈 hides the index column completely
+                     )
+                 }
+             )
 
             st.caption("Tip: Use the slider above to exit edit mode after saving.")
 
