@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from datetime import datetime, date
+import datetime as dt
 
 import numpy as np
 import pandas as pd
@@ -1039,17 +1040,47 @@ with tab_pl:
     if trades_df.empty:
         st.info("No transactions yet.")
     else:
-        # Date range selector
+        # Date range bounds from data
         min_dt = trades_df["date"].min().date()
         max_dt = trades_df["date"].max().date()
 
-        col1, col2 = st.columns(2)
-        start_date = col1.date_input("From", value=min_dt, min_value=min_dt, max_value=max_dt)
-        end_date = col2.date_input("To", value=max_dt, min_value=min_dt, max_value=max_dt)
+        # Use the latest data date (or today, whichever is earlier) as reference
+        today = dt.date.today()
+        reference_date = min(max_dt, today)
+
+        # Date range selector (dropdown)
+        range_options = ["Year to date", "Last calendar year", "Last 12 months", "Custom range"]
+        selected_range = st.selectbox("Date range", range_options, index=0)
+
+        # Compute start_date and end_date based on selection
+        if selected_range == "Year to date":
+            year_start = dt.date(reference_date.year, 1, 1)
+            start_date = max(year_start, min_dt)
+            end_date = reference_date
+
+        elif selected_range == "Last calendar year":
+            last_year = reference_date.year - 1
+            start_candidate = dt.date(last_year, 1, 1)
+            end_candidate = dt.date(last_year, 12, 31)
+
+            # Clamp to available data
+            start_date = max(start_candidate, min_dt)
+            end_date = min(end_candidate, max_dt)
+
+        elif selected_range == "Last 12 months":
+            end_date = reference_date
+            start_candidate = end_date - dt.timedelta(days=365)
+            start_date = max(start_candidate, min_dt)
+
+        else:  # "Custom range"
+            col1, col2 = st.columns(2)
+            start_date = col1.date_input("From", value=min_dt, min_value=min_dt, max_value=max_dt)
+            end_date = col2.date_input("To", value=max_dt, min_value=min_dt, max_value=max_dt)
 
         if start_date > end_date:
             st.error("Start date cannot be after end date.")
         else:
+            # Filter data based on computed range
             mask_range = (
                 (trades_df["date"].dt.date >= start_date)
                 & (trades_df["date"].dt.date <= end_date)
