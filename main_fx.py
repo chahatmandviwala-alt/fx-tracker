@@ -960,7 +960,7 @@ with tab_history:
             # Show date as string for editing
             editable["date"] = editable["date"].dt.strftime("%Y-%m-%d")
             editable["foreign_amount"] = editable["foreign_amount"].abs()
-            editable["Delete"] = False
+            
 
             editable = editable.rename(
                 columns={
