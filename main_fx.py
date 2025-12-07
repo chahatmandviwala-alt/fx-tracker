@@ -956,7 +956,7 @@ with tab_history:
 
         else:
             # --- EDITABLE VIEW (slider ON) ---
-            editable = trades_df[history_cols].copy()
+            editable = trades_df[history_cols].sort_values("date", ascending=False).copy()
             # Show date as string for editing
             editable["date"] = editable["date"].dt.strftime("%Y-%m-%d")
             editable["foreign_amount"] = editable["foreign_amount"].abs()
