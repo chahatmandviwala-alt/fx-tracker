@@ -306,6 +306,13 @@ def fetch_latest_fx(from_ccy: str, to_ccy: str) -> float:
 def recompute_average_cost(trades_df: pd.DataFrame) -> pd.DataFrame:
     """
     Average-cost model per foreign currency.
+
+    New rule:
+    - For trades on the SAME DATE and SAME CURRENCY:
+      Buy/Credit are processed BEFORE Sell/Debit so that
+      same-day buys affect the average cost used for sells on that day.
+
+    Conventions:
     - foreign_amount: +ve for Buy/Credit (inflow), -ve for Sell/Debit (outflow)
     - fee_foreign: fee in foreign currency, converted to base using fx_rate
     - fx_rate: base per 1 foreign
@@ -320,7 +327,35 @@ def recompute_average_cost(trades_df: pd.DataFrame) -> pd.DataFrame:
         return trades_df
 
     df = trades_df.copy()
-    df = df.sort_values("date")
+
+    # Ensure date is datetime
+    df["date"] = pd.to_datetime(df["date"], errors="coerce")
+
+    # Keep original order as a tiebreaker
+    df = df.reset_index(drop=False).rename(columns={"index": "_orig_idx"})
+
+    # Define intra-day execution order:
+    # Buy/Credit (0) -> Sell/Debit (1) -> everything else (2)
+    order_map = {
+        "BUY": 0,
+        "CREDIT": 0,
+        "SELL": 1,
+        "DEBIT": 1,
+    }
+    df["txn_order"] = (
+        df["txn_type"]
+        .astype(str)
+        .str.upper()
+        .map(order_map)
+        .fillna(2)
+    )
+
+    # Sort:
+    # - by date
+    # - by currency (optional but nice to keep things grouped)
+    # - by txn_order (Buy/Credit first, then Sell/Debit)
+    # - by original index as final tiebreaker
+    df = df.sort_values(["date", "foreign_ccy", "txn_order", "_orig_idx"])
 
     # Ensure columns exist
     for col in ["foreign_amount", "fx_rate", "fee_foreign"]:
@@ -354,7 +389,7 @@ def recompute_average_cost(trades_df: pd.DataFrame) -> pd.DataFrame:
     df["running_cost_base"] = 0.0
     df["running_avg_cost"] = 0.0
 
-    # New: track cost & proceeds for realized P/L reporting
+    # Track cost & proceeds for realized P/L reporting
     df["sale_proceeds_base"] = 0.0
     df["sale_cost_base"] = 0.0
 
@@ -368,7 +403,7 @@ def recompute_average_cost(trades_df: pd.DataFrame) -> pd.DataFrame:
         pos = positions[ccy]["pos"]
         cost = positions[ccy]["cost"]
 
-        txn_type = str(row["txn_type"])
+        txn_type = str(row["txn_type"]).upper()
         foreign_amount = float(row["foreign_amount"])
         fx_rate = float(row["fx_rate"])
         fee_base = float(row["fee_base"])
@@ -377,14 +412,14 @@ def recompute_average_cost(trades_df: pd.DataFrame) -> pd.DataFrame:
         sale_proceeds = 0.0
         sale_cost = 0.0
 
-        if txn_type in ["Buy", "Credit"]:
+        if txn_type in ["BUY", "CREDIT"]:
             units = abs(foreign_amount)
             base_amount = units * fx_rate
             cost_increase = base_amount + fee_base
             new_pos = pos + units
             new_cost = cost + cost_increase
 
-        elif txn_type in ["Sell", "Debit"]:
+        elif txn_type in ["SELL", "DEBIT"]:
             units = abs(foreign_amount)
             if pos > 0:
                 avg_cost = cost / pos
@@ -411,6 +446,9 @@ def recompute_average_cost(trades_df: pd.DataFrame) -> pd.DataFrame:
         df.at[idx, "running_avg_cost"] = (new_cost / new_pos) if new_pos != 0 else 0.0
         df.at[idx, "sale_proceeds_base"] = sale_proceeds
         df.at[idx, "sale_cost_base"] = sale_cost
+
+    # (Optional) drop helper columns before returning
+    df = df.drop(columns=["txn_order", "_orig_idx"])
 
     return df
 
@@ -462,6 +500,7 @@ def save_trades(df: pd.DataFrame) -> None:
 def build_positions_summary(trades_df: pd.DataFrame) -> pd.DataFrame:
     """
     Per-currency summary: position, total_cost_base, avg_cost, realized P/L.
+    Only returns rows where position != 0 (within a tiny tolerance).
     """
     if trades_df.empty:
         return pd.DataFrame(
@@ -474,11 +513,8 @@ def build_positions_summary(trades_df: pd.DataFrame) -> pd.DataFrame:
             ]
         )
 
-    latest = (
-        trades_df.sort_values("date")
-        .groupby("foreign_ccy", as_index=False)
-        .tail(1)
-    )
+    # Use the current order from recompute_average_cost (already sorted correctly)
+    latest = trades_df.groupby("foreign_ccy", as_index=False).tail(1)
 
     realized = (
         trades_df.groupby("foreign_ccy")["realized_pl_base"]
@@ -496,6 +532,10 @@ def build_positions_summary(trades_df: pd.DataFrame) -> pd.DataFrame:
     )
     res = res.merge(realized, on="foreign_ccy", how="left")
     res["realized_pl_base"].fillna(0.0, inplace=True)
+
+    # 🔑 NEW: drop zero-positions (with float tolerance)
+    res = res[res["position"].abs() >= 1e-9].reset_index(drop=True)
+
     return res
 
 
