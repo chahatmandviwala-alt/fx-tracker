@@ -979,6 +979,7 @@ with tab_history:
                 editable,
                 num_rows="dynamic",  # allow add/remove rows
                 use_container_width=True,
+                hide_index=True,
                 key="history_editor",
             )
 
