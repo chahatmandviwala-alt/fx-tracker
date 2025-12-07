@@ -944,6 +944,9 @@ with tab_history:
             if hide_values:
                 for col in ["Amount", "Fx Rate", "Fees"]:
                     display[col] = "••••••"
+            else:
+                for col in ["Amount"]:
+                    display[col] = display[col].abs()
 
             st.dataframe(
                 display.sort_values("Date", ascending=False),
@@ -1143,6 +1146,7 @@ with tab_pl:
                     use_container_width=True,
                     hide_index=True,
                 )
+
 
 
 
