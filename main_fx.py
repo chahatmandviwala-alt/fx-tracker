@@ -960,6 +960,7 @@ with tab_history:
             # Show date as string for editing
             editable["date"] = editable["date"].dt.strftime("%Y-%m-%d")
             editable["foreign_amount"] = editable["foreign_amount"].abs()
+            editable["Delete"] = False
 
             editable = editable.rename(
                 columns={
@@ -986,6 +987,8 @@ with tab_history:
             # Small save button under the editor
             if st.button("💾 Save changes", key="save_history_btn"):
                 try:
+                    edited_df = edited_df[edited_df["Delete"] != True].copy()
+                    edited_df = edited_df.drop(columns=["Delete"])
                     # Map back to internal column names
                     updated = edited_df.rename(
                         columns={
