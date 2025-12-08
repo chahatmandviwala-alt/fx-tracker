@@ -605,14 +605,50 @@ with st.sidebar:
 
     st.divider()
 
-    # Download current FX trades
+    # --- Portfolio file import / export (per-user) ---
     if DATA_FILE.exists():
-        st.download_button(
-            label="⬇️ Download FX trades",
-            data=DATA_FILE.read_bytes(),
-            file_name="fx_trades.csv",
-            mime="text/csv",
-            use_container_width=True,
+        csv_bytes = DATA_FILE.read_bytes()
+
+        import base64
+        b64 = base64.b64encode(csv_bytes).decode()
+
+        st.markdown(
+            f"""
+            <style>
+            .ios-download-button {{
+                display: inline-block;
+                width: 100%;
+                padding: 0.55rem 1rem;
+                border-radius: 0.5rem;
+                background-color: var(--secondary-background-color);
+                color: var(--text-color);
+                text-decoration: none !important;  /* remove underline */
+                font-weight: 500;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                text-align: center;
+                font-size: 0.9rem;
+                box-sizing: border-box;
+
+                /* This creates the "raised" look Streamlit uses */
+                box-shadow: 0 0.15rem 0.3rem rgba(0,0,0,0.25);
+                transition: all 0.15s ease;
+            }}
+
+            .ios-download-button:hover {{
+                background-color: rgba(255,255,255,0.15);
+                border-color: rgba(255,255,255,0.25);
+                box-shadow: 0 0.25rem 0.35rem rgba(0,0,0,0.35);
+                text-decoration: none !important;  /* also remove underline on hover */
+            }}
+            </style>
+
+            <a class="ios-download-button"
+               href="data:text/csv;base64,{b64}"
+               download="{username}_trades.csv">
+               ⬇️ Download portfolio
+            </a>
+            """,
+            unsafe_allow_html=True
         )
     else:
         st.caption("No FX trades file yet.")
