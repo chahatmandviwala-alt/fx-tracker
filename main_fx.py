@@ -645,7 +645,7 @@ with st.sidebar:
             <a class="ios-download-button"
                href="data:text/csv;base64,{b64}"
                download="fx_trades.csv">
-               ⬇️ Download portfolio
+               ⬇️ Download FX trades
             </a>
             """,
             unsafe_allow_html=True
